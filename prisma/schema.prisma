@@ -1,0 +1,333 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum MemberRole {
+  RESIDENT
+  BOARD_MEMBER
+  ADMIN
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum IssueStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum ReminderUnit {
+  MINUTES
+  HOURS
+  DAYS
+}
+
+enum DocumentCategory {
+  BYLAW
+  REGULATION
+  POLICY
+  NOTICE
+  OTHER
+}
+
+// ─── Core Auth / Membership ───────────────────────────────────────────────────
+
+model User {
+  id        String   @id // Clerk user ID
+  email     String   @unique
+  username  String   @unique
+  name      String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+
+  memberships       BuildingMembership[]
+  discussions       Discussion[]
+  discussionReplies DiscussionReply[]
+  tasksCreated      Task[]               @relation("TaskCreator")
+  tasksAssigned     Task[]               @relation("TaskAssignee")
+  directoryEntries  DirectoryContact[]
+  ticketsCreated    Ticket[]             @relation("TicketCreator")
+  ticketImpacts     TicketUnitImpact[]
+  eventAttendees    EventAttendee[]
+  issuesReported    Issue[]
+  regulationsAuthored Regulation[]
+}
+
+model Building {
+  id          String   @id @default(cuid())
+  name        String
+  address     String?
+  description String?
+  joinCode    String   @unique @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberships       BuildingMembership[]
+  units             Unit[]
+  discussions       Discussion[]
+  tasks             Task[]
+  directoryContacts DirectoryContact[]
+  tickets           Ticket[]
+  issues            Issue[]
+  events            CalendarEvent[]
+  regulations       Regulation[]
+}
+
+model Unit {
+  id         String   @id @default(cuid())
+  buildingId String
+  number     String   // e.g. "4B", "101"
+  floor      Int?
+  createdAt  DateTime @default(now())
+
+  building      Building             @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  memberships   BuildingMembership[]
+  ticketImpacts TicketUnitImpact[]
+
+  @@unique([buildingId, number])
+}
+
+model BuildingMembership {
+  id         String     @id @default(cuid())
+  userId     String
+  buildingId String
+  unitId     String?
+  role       MemberRole @default(RESIDENT)
+  joinedAt   DateTime   @default(now())
+
+  user     User     @relation(fields: [userId], references: [id])
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  unit     Unit?    @relation(fields: [unitId], references: [id])
+
+  @@unique([userId, buildingId])
+}
+
+// ─── Discussions ──────────────────────────────────────────────────────────────
+
+model Discussion {
+  id         String   @id @default(cuid())
+  buildingId String
+  authorId   String
+  title      String
+  body       String
+  isPinned   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  building Building          @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  author   User              @relation(fields: [authorId], references: [id])
+  replies  DiscussionReply[]
+}
+
+model DiscussionReply {
+  id           String   @id @default(cuid())
+  discussionId String
+  authorId     String
+  body         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  discussion Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+  author     User       @relation(fields: [authorId], references: [id])
+}
+
+// ─── Tasks ────────────────────────────────────────────────────────────────────
+
+model Task {
+  id          String       @id @default(cuid())
+  buildingId  String
+  createdById String
+  assigneeId  String?
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  dueDate     DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  building  Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  createdBy User     @relation("TaskCreator", fields: [createdById], references: [id])
+  assignee  User?    @relation("TaskAssignee", fields: [assigneeId], references: [id])
+}
+
+// ─── Directory ────────────────────────────────────────────────────────────────
+
+model DirectoryContact {
+  id         String   @id @default(cuid())
+  buildingId String
+  addedById  String
+  name       String
+  phone      String?
+  email      String?
+  specialty  String   // e.g. "Plumber", "Electrician"
+  category   String?  // e.g. "Contractor", "Vendor", "Emergency"
+  notes      String?
+  website    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  building Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  addedBy  User     @relation(fields: [addedById], references: [id])
+}
+
+// ─── Tickets ──────────────────────────────────────────────────────────────────
+
+model Ticket {
+  id          String         @id @default(cuid())
+  buildingId  String
+  createdById String
+  title       String
+  description String
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  location    String?        // e.g. "Lobby", "Roof", "Unit 4B"
+  issueId     String?
+  resolvedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  building    Building           @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  createdBy   User               @relation("TicketCreator", fields: [createdById], references: [id])
+  issue       Issue?             @relation(fields: [issueId], references: [id])
+  unitImpacts TicketUnitImpact[]
+}
+
+model TicketUnitImpact {
+  id         String   @id @default(cuid())
+  ticketId   String
+  unitId     String
+  userId     String   // resident who checked "my unit is affected"
+  reportedAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  unit   Unit   @relation(fields: [unitId], references: [id])
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([ticketId, unitId])
+}
+
+// ─── Issues ───────────────────────────────────────────────────────────────────
+
+model Issue {
+  id           String      @id @default(cuid())
+  buildingId   String
+  reportedById String
+  title        String
+  description  String
+  status       IssueStatus @default(OPEN)
+  resolvedAt   DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  building   Building @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  reportedBy User     @relation(fields: [reportedById], references: [id])
+  tickets    Ticket[]
+}
+
+// ─── Calendar & Events ────────────────────────────────────────────────────────
+
+model CalendarEvent {
+  id          String    @id @default(cuid())
+  buildingId  String
+  createdById String
+  title       String
+  description String?
+  location    String?
+  startAt     DateTime
+  endAt       DateTime
+  allDay      Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  building  Building        @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  attendees EventAttendee[]
+  reminders EventReminder[]
+}
+
+model EventAttendee {
+  id      String   @id @default(cuid())
+  eventId String
+  userId  String
+  rsvp    Boolean? // null = invited, true = accepted, false = declined
+
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User          @relation(fields: [userId], references: [id])
+
+  @@unique([eventId, userId])
+}
+
+model EventReminder {
+  id        String       @id @default(cuid())
+  eventId   String
+  amount    Int          // e.g. 1, 24, 60
+  unit      ReminderUnit // MINUTES, HOURS, DAYS
+  sentAt    DateTime?    // null until fired by cron
+  createdAt DateTime     @default(now())
+
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+}
+
+// ─── Regulations / Documents ──────────────────────────────────────────────────
+
+model Regulation {
+  id          String           @id @default(cuid())
+  buildingId  String
+  authorId    String
+  title       String
+  body        String?          // markdown content
+  category    DocumentCategory @default(OTHER)
+  version     Int              @default(1)
+  isPublished Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  building  Building   @relation(fields: [buildingId], references: [id], onDelete: Cascade)
+  author    User       @relation(fields: [authorId], references: [id])
+  documents Document[]
+}
+
+model Document {
+  id           String   @id @default(cuid())
+  regulationId String
+  fileName     String
+  fileUrl      String   // Supabase Storage URL
+  mimeType     String
+  sizeBytes    Int
+  uploadedAt   DateTime @default(now())
+
+  regulation Regulation @relation(fields: [regulationId], references: [id], onDelete: Cascade)
+}

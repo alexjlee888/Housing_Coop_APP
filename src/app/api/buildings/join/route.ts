@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@clerk/nextjs/server";
 import { db } from "@/lib/db";
+import { ensureUser } from "@/lib/ensure-user";
 import { z } from "zod";
 
 const joinSchema = z.object({
@@ -9,21 +9,17 @@ const joinSchema = z.object({
 
 // POST /api/buildings/join — join a building by its join code
 export async function POST(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId) {
+  let user;
+  try {
+    user = await ensureUser();
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const user = await db.user.findUnique({ where: { id: userId } });
-  if (!user) {
-    return NextResponse.json(
-      { error: "User not found. Please wait a moment and try again." },
-      { status: 404 }
-    );
-  }
-
   // Check user isn't already in a building
-  const existing = await db.buildingMembership.findFirst({ where: { userId } });
+  const existing = await db.buildingMembership.findFirst({
+    where: { userId: user.id },
+  });
   if (existing) {
     return NextResponse.json(
       { error: "You are already a member of a building." },
@@ -50,7 +46,7 @@ export async function POST(req: NextRequest) {
 
   const membership = await db.buildingMembership.create({
     data: {
-      userId,
+      userId: user.id,
       buildingId: building.id,
       role: "RESIDENT",
     },

@@ -1,3 +1,6 @@
+import { auth } from "@clerk/nextjs/server";
+import { redirect } from "next/navigation";
+import { db } from "@/lib/db";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/button";
 import { Building2, CheckSquare, MessageSquare, Ticket, CalendarDays, FileText } from "lucide-react";
@@ -36,7 +39,17 @@ const features = [
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const { userId } = await auth();
+
+  // Redirect logged-in users to the right place
+  if (userId) {
+    const membership = await db.buildingMembership.findFirst({
+      where: { userId },
+    });
+    redirect(membership ? "/dashboard" : "/onboarding");
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       {/* Navbar */}
@@ -89,7 +102,7 @@ export default function LandingPage() {
               href="/sign-in"
               className={cn(buttonVariants({ variant: "outline", size: "lg" }))}
             >
-              Join with a code
+              Sign in
             </Link>
           </div>
         </div>

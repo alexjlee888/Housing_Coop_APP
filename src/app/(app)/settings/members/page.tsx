@@ -6,13 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users } from "lucide-react";
+import { MemberActions } from "@/components/settings/MemberActions";
 import type { MemberRole } from "@/generated/prisma/client";
-
-const roleLabels: Record<MemberRole, string> = {
-  RESIDENT: "Resident",
-  BOARD_MEMBER: "Board Member",
-  ADMIN: "Admin",
-};
 
 const roleVariant: Record<MemberRole, "default" | "secondary" | "outline"> = {
   ADMIN: "default",
@@ -31,16 +26,15 @@ export default async function MembersPage() {
 
   if (!membership) redirect("/onboarding");
 
+  const isAdmin = membership.role === "ADMIN";
+
   const members = await db.buildingMembership.findMany({
     where: { buildingId: membership.buildingId },
     include: {
       user: true,
       unit: true,
     },
-    orderBy: [
-      { role: "asc" },
-      { joinedAt: "asc" },
-    ],
+    orderBy: [{ role: "asc" }, { joinedAt: "asc" }],
   });
 
   return (
@@ -69,11 +63,10 @@ export default async function MembersPage() {
               .toUpperCase()
               .slice(0, 2);
 
+            const isMe = m.userId === userId;
+
             return (
-              <div
-                key={m.id}
-                className="flex items-center gap-4 py-3 first:pt-0 last:pb-0"
-              >
+              <div key={m.id} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
                 <Avatar size="default">
                   <AvatarImage src={m.user.avatarUrl ?? undefined} />
                   <AvatarFallback>{initials}</AvatarFallback>
@@ -82,27 +75,29 @@ export default async function MembersPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">
                     {m.user.name ?? m.user.username}
-                    {m.userId === userId && (
-                      <span className="text-muted-foreground font-normal ml-1">
-                        (you)
-                      </span>
+                    {isMe && (
+                      <span className="text-muted-foreground font-normal ml-1">(you)</span>
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {m.user.email}
-                    {m.unit && (
-                      <span className="ml-2">· Unit {m.unit.number}</span>
-                    )}
+                    {m.unit && <span className="ml-2">· Unit {m.unit.number}</span>}
+                    <span className="ml-2">· Joined {formatDate(m.joinedAt)}</span>
                   </p>
                 </div>
 
                 <div className="flex items-center gap-3 shrink-0">
-                  <Badge variant={roleVariant[m.role]}>
-                    {roleLabels[m.role]}
-                  </Badge>
-                  <p className="text-xs text-muted-foreground hidden sm:block">
-                    Joined {formatDate(m.joinedAt)}
-                  </p>
+                  {isAdmin && !isMe ? (
+                    <MemberActions
+                      buildingId={membership.buildingId}
+                      targetUserId={m.userId}
+                      currentRole={m.role}
+                    />
+                  ) : (
+                    <Badge variant={roleVariant[m.role]} className="text-xs">
+                      {m.role.replace("_", " ")}
+                    </Badge>
+                  )}
                 </div>
               </div>
             );

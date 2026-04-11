@@ -2,7 +2,8 @@ import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CopyJoinCode } from "@/components/CopyJoinCode";
+import { BuildingSettingsForm } from "@/components/settings/BuildingSettingsForm";
+import { RegenerateJoinCode } from "@/components/settings/RegenerateJoinCode";
 
 export default async function SettingsPage() {
   const { userId } = await auth();
@@ -26,29 +27,7 @@ export default async function SettingsPage() {
         <p className="text-muted-foreground mt-1">Manage your building information.</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Building Info</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Name</span>
-            <span className="font-medium">{building.name}</span>
-          </div>
-          {building.address && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Address</span>
-              <span className="font-medium">{building.address}</span>
-            </div>
-          )}
-          {building.description && (
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Description</span>
-              <span className="font-medium">{building.description}</span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <BuildingSettingsForm building={building} />
 
       <Card>
         <CardHeader>
@@ -57,8 +36,9 @@ export default async function SettingsPage() {
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
             Share this code with residents so they can join your building.
+            Regenerating will invalidate the old code immediately.
           </p>
-          <CopyJoinCode code={building.joinCode} />
+          <RegenerateJoinCode buildingId={building.id} currentCode={building.joinCode} />
         </CardContent>
       </Card>
     </div>

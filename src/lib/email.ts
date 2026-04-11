@@ -1,8 +1,10 @@
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const FROM = process.env.RESEND_FROM_EMAIL ?? "notifications@yourdomain.com";
+
+function getResend() {
+  return new Resend(process.env.RESEND_API_KEY);
+}
 
 export async function sendEventReminderEmail({
   to,
@@ -25,7 +27,7 @@ export async function sendEventReminderEmail({
     minute: "2-digit",
   }).format(startAt);
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to,
     subject: `Reminder: ${eventTitle} — ${buildingName}`,
@@ -57,7 +59,7 @@ export async function sendTaskAssignedEmail({
     ? new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(dueDate)
     : null;
 
-  await resend.emails.send({
+  await getResend().emails.send({
     from: FROM,
     to,
     subject: `New task assigned to you — ${buildingName}`,
